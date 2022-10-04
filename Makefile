@@ -1,0 +1,3 @@
+.PHONY: t
+t:
+	go test ./...
