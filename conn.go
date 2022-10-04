@@ -63,6 +63,8 @@ package sqlite
 #cgo CFLAGS: -DHAVE_PREAD=1 -DHAVE_PWRITE=1
 #cgo CFLAGS: -DHAVE_USLEEP=1
 
+#cgo LDFLAGS: -lm
+
 #include "sqlite3.h"
 
 static int enable_defensive(sqlite3 *db) {
