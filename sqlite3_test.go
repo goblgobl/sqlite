@@ -224,7 +224,7 @@ func Test_Rows(t *testing.T) {
 	for rows.Next() {
 		var n int
 		var t string
-		if !rows.Scan(&n, &t) {
+		if rows.Scan(&n, &t) != nil {
 			break
 		}
 		results = append(results, []any{n, t})
@@ -269,7 +269,7 @@ func Test_Rows_ScanError(t *testing.T) {
 	for rows.Next() {
 		called += 1
 		var t time.Time
-		if !rows.Scan(&t) {
+		if rows.Scan(&t) == nil {
 			break
 		}
 	}
@@ -318,15 +318,15 @@ func queryLast(db sqlite.Conn) *TestRow {
 func queryId(db sqlite.Conn, id int) *TestRow {
 	var tr TestRow
 	row := db.RowB([]byte("select * from test where id = ?"), id)
-	exists, err := row.Scan(&tr.Id, &tr.Int, &tr.Intn, &tr.Real, &tr.Realn, &tr.Text, &tr.Textn, &tr.Blob, &tr.Blobn)
+	err := row.Scan(&tr.Id, &tr.Int, &tr.Intn, &tr.Real, &tr.Realn, &tr.Text, &tr.Textn, &tr.Blob, &tr.Blobn)
+
+	if err == sqlite.ErrNoRows {
+		return nil
+	}
 
 	if err != nil {
 		panic(err)
 	}
 
-	if exists {
-		return &tr
-	}
-
-	return nil
+	return &tr
 }

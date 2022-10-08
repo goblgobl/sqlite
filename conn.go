@@ -74,6 +74,7 @@ static int enable_defensive(sqlite3 *db) {
 import "C"
 
 import (
+	"errors"
 	"os"
 	"reflect"
 	"time"
@@ -85,12 +86,18 @@ var (
 	txBeginExclusive = cStr(Terminate("begin exclusive"))
 	txCommit         = cStr(Terminate("commit"))
 	txRollback       = cStr(Terminate("rollback"))
+
+	ErrNoRows = errors.New("no rows in result set")
 )
 
 func init() {
 	if rc := C.sqlite3_initialize(); rc != C.SQLITE_OK {
 		panic(errorFromCode(nil, rc))
 	}
+}
+
+type Scanner interface {
+	Scan(dest ...any) error
 }
 
 func Terminate(sql string) string {

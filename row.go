@@ -5,26 +5,26 @@ type Row struct {
 	err  error
 }
 
-func (r Row) Scan(dst ...interface{}) (bool, error) {
+func (r Row) Scan(dst ...interface{}) error {
 	if err := r.err; err != nil {
-		return false, err
+		return err
 	}
 	stmt := r.stmt
 	defer stmt.Close()
 
 	hasRow, err := stmt.Step()
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if !hasRow {
-		return false, nil
+		return ErrNoRows
 	}
 
 	for i, v := range dst {
 		if err := stmt.scan(i, v); err != nil {
-			return false, err
+			return err
 		}
 	}
-	return true, nil
+	return nil
 }

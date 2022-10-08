@@ -20,16 +20,16 @@ func (r *Rows) Next() bool {
 	return hasMore
 }
 
-func (r *Rows) Scan(dst ...interface{}) bool {
+func (r *Rows) Scan(dst ...interface{}) error {
 	stmt := r.stmt
 	for i, v := range dst {
 		if err := stmt.scan(i, v); err != nil {
 			r.err = err
-			return false
+			return err
 		}
 	}
 
-	return true
+	return nil
 }
 
 func (r Rows) Error() error {
