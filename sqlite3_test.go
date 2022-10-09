@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"math/rand"
+	"os"
 	"testing"
 	"time"
 
@@ -21,6 +22,8 @@ type TestRow struct {
 	Textn sqlite.Option[string]
 	Blob  []byte
 	Blobn []byte
+	Time  time.Time
+	Timen sqlite.Option[time.Time]
 }
 
 func Test_Conn_NotExistWhenNotCreate(t *testing.T) {
@@ -32,10 +35,11 @@ func Test_Conn_ExecAndScan(t *testing.T) {
 	db := testDB()
 	defer db.Close()
 
+	now := time.Now()
 	mustExec(db, `
-		insert into test (cint, creal, ctext, cblob)
-		values (?, ?, ?, ?)
-	`, 1, 2.2, "three", []byte("four"))
+		insert into test (cint, creal, ctext, cblob, time)
+		values (?1, ?2, ?3, ?4, ?5)
+	`, 1, 2.2, "three", []byte("four"), now)
 	assert.Equal(t, db.Changes(), 1)
 
 	lastId := db.LastInsertRowID()
@@ -45,10 +49,12 @@ func Test_Conn_ExecAndScan(t *testing.T) {
 	assert.Equal(t, row.Real, 2.2)
 	assert.Equal(t, row.Text, "three")
 	assert.Equal(t, string(row.Blob), "four")
+	assert.Equal(t, row.Time, now.Truncate(time.Second))
 	assert.Equal(t, row.Intn.Valid, false)
 	assert.Equal(t, row.Realn.Valid, false)
 	assert.Equal(t, row.Textn.Valid, false)
 	assert.True(t, row.Blobn == nil)
+	assert.Equal(t, row.Timen.Valid, false)
 
 	mustExec(db, "delete from test where id = ?", lastId)
 	assert.Equal(t, db.Changes(), 1)
@@ -268,13 +274,13 @@ func Test_Rows_ScanError(t *testing.T) {
 	called := 0
 	for rows.Next() {
 		called += 1
-		var t time.Time
-		if rows.Scan(&t) == nil {
+		var c os.File
+		if rows.Scan(&c) == nil {
 			break
 		}
 	}
 	assert.Equal(t, called, 1)
-	assert.Equal(t, rows.Error().Error(), "sqlite: cannot scan into *time.Time (index: 0) (code: 21)")
+	assert.Equal(t, rows.Error().Error(), "sqlite: cannot scan into *os.File (index: 0) (code: 21)")
 }
 
 func testDB() sqlite.Conn {
@@ -292,7 +298,9 @@ func testDB() sqlite.Conn {
 			ctext text not null default(''),
 			ctextn text null,
 			cblob blob not null default(''),
-			cblobn blob null
+			cblobn blob null,
+			time int not null default(0),
+			timen int null
 		)
 	`)
 	return db
@@ -318,7 +326,7 @@ func queryLast(db sqlite.Conn) *TestRow {
 func queryId(db sqlite.Conn, id int) *TestRow {
 	var tr TestRow
 	row := db.RowB([]byte("select * from test where id = ?"), id)
-	err := row.Scan(&tr.Id, &tr.Int, &tr.Intn, &tr.Real, &tr.Realn, &tr.Text, &tr.Textn, &tr.Blob, &tr.Blobn)
+	err := row.Scan(&tr.Id, &tr.Int, &tr.Intn, &tr.Real, &tr.Realn, &tr.Text, &tr.Textn, &tr.Blob, &tr.Blobn, &tr.Time, &tr.Timen)
 
 	if err == sqlite.ErrNoRows {
 		return nil

@@ -19,6 +19,7 @@ import "C"
 import (
 	"fmt"
 	"reflect"
+	"time"
 	"unsafe"
 )
 
@@ -111,6 +112,8 @@ func (s *Stmt) Bind(args ...interface{}) error {
 			} else {
 				rc = C.sqlite3_bind_blob(stmt, bindIndex, cBytes(v), C.int(len(v)), C.SQLITE_TRANSIENT)
 			}
+		case time.Time:
+			rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(v.Unix()))
 		default:
 			return Error{Code: C.SQLITE_MISUSE, Message: fmt.Sprintf("unsupported type %T (index: %d)", v, i)}
 		}
@@ -248,6 +251,15 @@ func (s *Stmt) scan(i int, v interface{}) error {
 		*v, err = s.ColumnBytes(i)
 	case *RawBytes:
 		*v, err = s.ColumnRawBytes(i)
+	case *time.Time:
+		*v = time.Unix(s.ColumnInt64(i), 0)
+	case *Option[time.Time]:
+		if s.columnTypes[i] == C.SQLITE_NULL {
+			*v = Option[time.Time]{}
+		} else {
+			n := s.ColumnInt64(i)
+			*v = Option[time.Time]{Value: time.Unix(n, 0), Valid: true}
+		}
 	default:
 		return Error{Code: C.SQLITE_MISUSE, Message: fmt.Sprintf("cannot scan into %T (index: %d)", v, i)}
 	}
