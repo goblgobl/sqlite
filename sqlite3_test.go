@@ -37,7 +37,7 @@ func Test_Conn_ExecAndScan(t *testing.T) {
 
 	now := time.Now()
 	mustExec(db, `
-		insert into test (cint, creal, ctext, cblob, time)
+		insert into test (cint, creal, ctext, cblob, ctime)
 		values (?1, ?2, ?3, ?4, ?5)
 	`, 1, 2.2, "three", []byte("four"), now)
 	assert.Equal(t, db.Changes(), 1)
@@ -289,6 +289,34 @@ func Test_Rows_ScanError(t *testing.T) {
 	assert.Equal(t, rows.Error().Error(), "sqlite: cannot scan into *os.File (index: 0) (code: 21)")
 }
 
+func Test_Row_Map(t *testing.T) {
+	db := testDB()
+	defer db.Close()
+
+	now := time.Now()
+
+	mustExec(db, `
+		insert into test (id, cint, creal, ctext, cblob, ctime)
+		values (?1, ?2, ?3, ?4, ?5, ?6)
+	`, 99, 2, 3.3, "four", []byte("five"), now)
+
+	m, err := db.Row("select * from test").Map()
+	assert.Nil(t, err)
+	assert.Equal(t, len(m), 11)
+
+	assert.Equal(t, m["id"].(int), 99)
+	assert.Equal(t, m["cint"].(int), 2)
+	assert.Nil(t, m["cintn"])
+	assert.Equal(t, m["creal"].(float64), 3.3)
+	assert.Nil(t, m["crealn"])
+	assert.Equal(t, m["ctext"].(string), "four")
+	assert.Nil(t, m["ctextn"])
+	assert.Equal(t, string(m["cblob"].([]byte)), "five")
+	assert.Nil(t, m["cblobn"])
+	assert.Equal(t, m["ctime"].(int), int(now.Unix()))
+	assert.Nil(t, m["ctimen"])
+}
+
 func testDB() sqlite.Conn {
 	db, err := sqlite.Open(":memory:", true)
 	if err != nil {
@@ -305,8 +333,8 @@ func testDB() sqlite.Conn {
 			ctextn text null,
 			cblob blob not null default(''),
 			cblobn blob null,
-			time int not null default(0),
-			timen int null
+			ctime int not null default(0),
+			ctimen int null
 		)
 	`)
 	return db

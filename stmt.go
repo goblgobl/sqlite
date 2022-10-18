@@ -39,6 +39,7 @@ type Stmt struct {
 	columnTypes  []byte
 	cColumnTypes *C.uchar
 	cColumnCount C.int
+	columnNames  []string
 }
 
 func (s *Stmt) Close() error {
@@ -50,12 +51,17 @@ func (s *Stmt) Close() error {
 }
 
 func (s *Stmt) ColumnNames() []string {
+	if names := s.columnNames; names != nil {
+		return names
+	}
+
 	stmt := s.stmt
 	count := s.columnCount
 	names := make([]string, count)
 	for i := 0; i < count; i++ {
 		names[i] = C.GoString(C.sqlite3_column_name(stmt, C.int(i)))
 	}
+	s.columnNames = names
 	return names
 }
 
@@ -129,6 +135,45 @@ func (s *Stmt) Bind(args ...interface{}) error {
 		}
 		if rc != C.SQLITE_OK {
 			return errorFromCode(s.db, rc)
+		}
+	}
+	return nil
+}
+
+func (s *Stmt) Map() (map[string]any, error) {
+	m := make(map[string]any, s.columnCount)
+	err := s.MapInto(m)
+	return m, err
+}
+
+func (s *Stmt) MapInto(m map[string]any) error {
+	names := s.ColumnNames()
+	for i, tpe := range s.columnTypes {
+		name := names[i]
+		switch tpe {
+		case C.SQLITE_NULL:
+			m[name] = nil
+			break
+		case C.SQLITE_INTEGER:
+			m[name] = s.ColumnInt(i)
+			break
+		case C.SQLITE_TEXT:
+			var err error
+			m[name], err = s.ColumnText(i)
+			if err != nil {
+				return err
+			}
+			break
+		case C.SQLITE_FLOAT:
+			m[name] = s.ColumnDouble(i)
+			break
+		case C.SQLITE_BLOB:
+			var err error
+			m[name], err = s.ColumnBytes(i)
+			if err != nil {
+				return err
+			}
+			break
 		}
 	}
 	return nil
