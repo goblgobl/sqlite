@@ -1,12 +1,12 @@
 package sqlite
 
 type Rows struct {
-	stmt *Stmt
+	Stmt *Stmt
 	err  error
 }
 
 func (r *Rows) Next() bool {
-	stmt := r.stmt
+	stmt := r.Stmt
 	if r.err != nil {
 		return false
 	}
@@ -21,7 +21,7 @@ func (r *Rows) Next() bool {
 }
 
 func (r *Rows) Scan(dst ...interface{}) error {
-	stmt := r.stmt
+	stmt := r.Stmt
 	for i, v := range dst {
 		if err := stmt.scan(i, v); err != nil {
 			r.err = err
@@ -38,7 +38,7 @@ func (r Rows) Error() error {
 
 func (r Rows) Close() {
 	// will be nil if the query was never valid
-	if stmt := r.stmt; stmt != nil {
+	if stmt := r.Stmt; stmt != nil {
 		stmt.Close()
 	}
 }

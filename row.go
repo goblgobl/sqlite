@@ -1,7 +1,7 @@
 package sqlite
 
 type Row struct {
-	stmt *Stmt
+	Stmt *Stmt
 	err  error
 }
 
@@ -9,7 +9,7 @@ func (r Row) Scan(dst ...interface{}) error {
 	if err := r.err; err != nil {
 		return err
 	}
-	stmt := r.stmt
+	stmt := r.Stmt
 	defer stmt.Close()
 
 	hasRow, err := stmt.Step()

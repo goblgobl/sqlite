@@ -93,6 +93,12 @@ func Test_Bool_True(t *testing.T) {
 
 	var b1, b2 bool
 	row := db.RowB([]byte("select cint, cintn from test where id = ?"), db.LastInsertRowID())
+
+	names := row.Stmt.ColumnNames()
+	assert.Equal(t, len(names), 2)
+	assert.Equal(t, names[0], "cint")
+	assert.Equal(t, names[1], "cintn")
+
 	row.Scan(&b1, &b2)
 	assert.Equal(t, b1, true)
 	assert.Equal(t, b2, true)

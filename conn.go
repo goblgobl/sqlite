@@ -185,7 +185,7 @@ func (c Conn) Prepare(sql []byte, args ...any) (*Stmt, error) {
 
 func (c Conn) RowB(sql []byte, args ...any) Row {
 	stmt, err := c.Prepare(sql, args...)
-	return Row{stmt: stmt, err: err}
+	return Row{Stmt: stmt, err: err}
 }
 
 func (c Conn) Row(sql string, args ...any) Row {
@@ -194,7 +194,7 @@ func (c Conn) Row(sql string, args ...any) Row {
 
 func (c Conn) RowsB(sql []byte, args ...any) Rows {
 	stmt, err := c.Prepare(sql, args...)
-	return Rows{stmt: stmt, err: err}
+	return Rows{Stmt: stmt, err: err}
 }
 
 func (c Conn) Rows(sql string, args ...any) Rows {

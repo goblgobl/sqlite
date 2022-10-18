@@ -49,6 +49,16 @@ func (s *Stmt) Close() error {
 	return nil
 }
 
+func (s *Stmt) ColumnNames() []string {
+	stmt := s.stmt
+	count := s.columnCount
+	names := make([]string, count)
+	for i := 0; i < count; i++ {
+		names[i] = C.GoString(C.sqlite3_column_name(stmt, C.int(i)))
+	}
+	return names
+}
+
 func (s *Stmt) Exec(args ...interface{}) error {
 	if err := s.Bind(args...); err != nil {
 		s.Reset()
