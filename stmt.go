@@ -89,39 +89,90 @@ func (s *Stmt) Bind(args ...interface{}) error {
 		var rc C.int
 		bindIndex := C.int(i + 1)
 
-		if v == nil {
-			rc = C.sqlite3_bind_null(stmt, bindIndex)
-			if rc != C.SQLITE_OK {
-				return errorFromCode(s.db, rc)
-			}
-			continue
-		}
 		switch v := v.(type) {
+		case nil:
+			rc = C.sqlite3_bind_null(stmt, bindIndex)
 		case int:
 			rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(v))
+		case *int:
+			if v == nil {
+				C.sqlite3_bind_null(stmt, bindIndex)
+			} else {
+				rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(*v))
+			}
 		case string:
 			if v == "" {
 				rc = C.empty_string(stmt, bindIndex)
 			} else {
 				rc = C.sqlite3_bind_text(stmt, bindIndex, cStr(v), C.int(len(v)), C.SQLITE_TRANSIENT)
 			}
+		case *string:
+			if v == nil {
+				C.sqlite3_bind_null(stmt, bindIndex)
+			} else {
+				if v := *v; v == "" {
+					rc = C.empty_string(stmt, bindIndex)
+				} else {
+					rc = C.sqlite3_bind_text(stmt, bindIndex, cStr(v), C.int(len(v)), C.SQLITE_TRANSIENT)
+				}
+			}
 		case uint16:
 			rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(int64(v)))
+		case *uint16:
+			if v == nil {
+				C.sqlite3_bind_null(stmt, bindIndex)
+			} else {
+				rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(int64(*v)))
+			}
 		case uint32:
 			rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(int64(v)))
+		case *uint32:
+			if v == nil {
+				C.sqlite3_bind_null(stmt, bindIndex)
+			} else {
+				rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(int64(*v)))
+			}
 		case uint64:
 			// OMG!!
 			rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(int64(v)))
+		case *uint64:
+			if v == nil {
+				C.sqlite3_bind_null(stmt, bindIndex)
+			} else {
+				rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(int64(*v)))
+			}
 		case int64:
 			rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(v))
+		case *int64:
+			if v == nil {
+				C.sqlite3_bind_null(stmt, bindIndex)
+			} else {
+				rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(*v))
+			}
 		case float64:
 			rc = C.sqlite3_bind_double(stmt, bindIndex, C.double(v))
+		case *float64:
+			if v == nil {
+				C.sqlite3_bind_null(stmt, bindIndex)
+			} else {
+				rc = C.sqlite3_bind_double(stmt, bindIndex, C.double(*v))
+			}
 		case bool:
 			var sqliteBool int64
 			if v {
 				sqliteBool = 1
 			}
 			rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(sqliteBool))
+		case *bool:
+			if v == nil {
+				C.sqlite3_bind_null(stmt, bindIndex)
+			} else {
+				var sqliteBool int64
+				if *v {
+					sqliteBool = 1
+				}
+				rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(sqliteBool))
+			}
 		case []byte:
 			if len(v) == 0 {
 				rc = C.sqlite3_bind_zeroblob(stmt, bindIndex, 0)
@@ -130,6 +181,12 @@ func (s *Stmt) Bind(args ...interface{}) error {
 			}
 		case time.Time:
 			rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(v.Unix()))
+		case *time.Time:
+			if v == nil {
+				C.sqlite3_bind_null(stmt, bindIndex)
+			} else {
+				rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64((*v).Unix()))
+			}
 		default:
 			return Error{Code: C.SQLITE_MISUSE, Message: fmt.Sprintf("unsupported type %T (index: %d)", v, i)}
 		}
@@ -258,49 +315,39 @@ func (s *Stmt) scan(i int, v interface{}) error {
 	switch v := v.(type) {
 	case *string:
 		*v, err = s.ColumnText(i)
-	case *Option[string]:
-		if s.columnTypes[i] == C.SQLITE_NULL {
-			*v = Option[string]{}
-		} else {
+	case **string:
+		if s.columnTypes[i] != C.SQLITE_NULL {
 			var n string
 			n, err = s.ColumnText(i)
-			*v = Option[string]{Value: n, Valid: true}
+			*v = &n
 		}
 	case *int:
 		*v = s.ColumnInt(i)
-	case *Option[int]:
-		if s.columnTypes[i] == C.SQLITE_NULL {
-			*v = Option[int]{}
-		} else {
-			n := s.ColumnInt64(i)
-			*v = Option[int]{Value: int(n), Valid: true}
+	case **int:
+		if s.columnTypes[i] != C.SQLITE_NULL {
+			n := int(s.ColumnInt64(i))
+			*v = &n
 		}
 	case *int64:
 		*v = s.ColumnInt64(i)
-	case *Option[int64]:
-		if s.columnTypes[i] == C.SQLITE_NULL {
-			*v = Option[int64]{}
-		} else {
+	case **int64:
+		if s.columnTypes[i] != C.SQLITE_NULL {
 			n := s.ColumnInt64(i)
-			*v = Option[int64]{Value: n, Valid: true}
+			*v = &n
 		}
 	case *float64:
 		*v = s.ColumnDouble(i)
-	case *Option[float64]:
-		if s.columnTypes[i] == C.SQLITE_NULL {
-			*v = Option[float64]{}
-		} else {
+	case **float64:
+		if s.columnTypes[i] != C.SQLITE_NULL {
 			n := s.ColumnDouble(i)
-			*v = Option[float64]{Value: n, Valid: true}
+			*v = &n
 		}
 	case *bool:
 		*v = s.ColumnInt64(i) != 0
-	case *Option[bool]:
-		if s.columnTypes[i] == C.SQLITE_NULL {
-			*v = Option[bool]{}
-		} else {
+	case **bool:
+		if s.columnTypes[i] != C.SQLITE_NULL {
 			n := s.ColumnInt64(i) != 0
-			*v = Option[bool]{Value: n, Valid: true}
+			*v = &n
 		}
 	case *[]byte:
 		*v, err = s.ColumnBytes(i)
@@ -308,12 +355,10 @@ func (s *Stmt) scan(i int, v interface{}) error {
 		*v, err = s.ColumnRawBytes(i)
 	case *time.Time:
 		*v = time.Unix(s.ColumnInt64(i), 0)
-	case *Option[time.Time]:
-		if s.columnTypes[i] == C.SQLITE_NULL {
-			*v = Option[time.Time]{}
-		} else {
-			n := s.ColumnInt64(i)
-			*v = Option[time.Time]{Value: time.Unix(n, 0), Valid: true}
+	case **time.Time:
+		if s.columnTypes[i] != C.SQLITE_NULL {
+			n := time.Unix(s.ColumnInt64(i), 0)
+			*v = &n
 		}
 	default:
 		return Error{Code: C.SQLITE_MISUSE, Message: fmt.Sprintf("cannot scan into %T (index: %d)", v, i)}

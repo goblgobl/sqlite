@@ -15,15 +15,15 @@ import (
 type TestRow struct {
 	Id    int
 	Int   int
-	Intn  sqlite.Option[int]
+	Intn  *int
 	Real  float64
-	Realn sqlite.Option[float64]
+	Realn *float64
 	Text  string
-	Textn sqlite.Option[string]
+	Textn *string
 	Blob  []byte
 	Blobn []byte
 	Time  time.Time
-	Timen sqlite.Option[time.Time]
+	Timen *time.Time
 }
 
 func Test_Conn_NotExistWhenNotCreate(t *testing.T) {
@@ -50,11 +50,11 @@ func Test_Conn_ExecAndScan(t *testing.T) {
 	assert.Equal(t, row.Text, "three")
 	assert.Equal(t, string(row.Blob), "four")
 	assert.Equal(t, row.Time, now.Truncate(time.Second))
-	assert.Equal(t, row.Intn.Valid, false)
-	assert.Equal(t, row.Realn.Valid, false)
-	assert.Equal(t, row.Textn.Valid, false)
+	assert.True(t, row.Intn == nil)
+	assert.True(t, row.Realn == nil)
+	assert.True(t, row.Textn == nil)
 	assert.True(t, row.Blobn == nil)
-	assert.Equal(t, row.Timen.Valid, false)
+	assert.True(t, row.Timen == nil)
 
 	mustExec(db, "delete from test where id = ?", lastId)
 	assert.Equal(t, db.Changes(), 1)
@@ -63,6 +63,38 @@ func Test_Conn_ExecAndScan(t *testing.T) {
 	mustExec(db, "delete from test where id = ?", lastId)
 	assert.Equal(t, db.Changes(), 0)
 	assert.Nil(t, queryLast(db))
+}
+
+func Test_Conn_BindNil(t *testing.T) {
+	db := testDB()
+	defer db.Close()
+
+	mustExec(db, `
+		insert into test (cintn, crealn, ctextn, cblobn, ctimen)
+		values (?1, ?2, ?3, ?4, ?5)
+	`, nil, nil, nil, nil, nil)
+	assert.Equal(t, db.Changes(), 1)
+
+	row := queryLast(db)
+	assert.True(t, row.Intn == nil)
+	assert.True(t, row.Realn == nil)
+	assert.True(t, row.Textn == nil)
+	assert.True(t, row.Blobn == nil)
+	assert.True(t, row.Timen == nil)
+
+	var data TestRow
+	mustExec(db, `
+		insert into test (cintn, crealn, ctextn, cblobn, ctimen)
+		values (?1, ?2, ?3, ?4, ?5)
+	`, data.Intn, data.Realn, data.Textn, data.Blobn, data.Timen)
+	assert.Equal(t, db.Changes(), 1)
+
+	row = queryLast(db)
+	assert.True(t, row.Intn == nil)
+	assert.True(t, row.Realn == nil)
+	assert.True(t, row.Textn == nil)
+	assert.True(t, row.Blobn == nil)
+	assert.True(t, row.Timen == nil)
 }
 
 func Test_Conn_Scan_RawBytes(t *testing.T) {
@@ -188,7 +220,7 @@ func Test_Transaction_Commit(t *testing.T) {
 	})
 
 	assert.Equal(t, queryId(db, id1).Text, "hello")
-	assert.Equal(t, queryId(db, id2).Textn.Value, "world")
+	assert.Equal(t, *queryId(db, id2).Textn, "world")
 }
 
 func Test_Transaction_Rollback(t *testing.T) {
