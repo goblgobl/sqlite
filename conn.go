@@ -59,11 +59,19 @@ package sqlite
 #cgo CFLAGS: -DSQLITE_OMIT_UTF16=1
 
 // PLATFORM FEATURES
-#cgo CFLAGS: -DHAVE_FDATASYNC=1
-#cgo CFLAGS: -DHAVE_PREAD=1 -DHAVE_PWRITE=1
-#cgo CFLAGS: -DHAVE_USLEEP=1
+#cgo linux LDFLAGS: -lm
+#cgo openbsd LDFLAGS: -lm
+#cgo linux,!android CFLAGS: -DHAVE_FDATASYNC=1
+#cgo linux,!android CFLAGS: -DHAVE_PREAD=1 -DHAVE_PWRITE=1
+#cgo darwin CFLAGS: -DHAVE_FDATASYNC=1
+#cgo darwin CFLAGS: -DHAVE_PREAD=1 -DHAVE_PWRITE=1
+#cgo windows LDFLAGS: -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
 
-#cgo LDFLAGS: -lm
+// Fix for BusyTimeout on *nix systems.
+#cgo !windows CFLAGS: -DHAVE_USLEEP=1
+
+// Fix "_localtime32(0): not defined" linker error.
+#cgo windows,386 CFLAGS: -D_localtime32=localtime
 
 #include "sqlite3.h"
 
