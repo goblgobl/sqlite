@@ -225,10 +225,15 @@ func (s *Stmt) MapInto(m map[string]any) error {
 			m[name] = s.ColumnDouble(i)
 			break
 		case C.SQLITE_BLOB:
-			var err error
-			m[name], err = s.ColumnBytes(i)
+			value, err := s.ColumnBytes(i)
 			if err != nil {
 				return err
+			}
+			// erase the type
+			if value == nil {
+				m[name] = nil
+			} else {
+				m[name] = value
 			}
 			break
 		}
