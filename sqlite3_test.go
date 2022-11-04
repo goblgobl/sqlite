@@ -21,7 +21,7 @@ type TestRow struct {
 	Text  string
 	Textn *string
 	Blob  []byte
-	Blobn []byte
+	Blobn *[]byte
 	Time  time.Time
 	Timen *time.Time
 }

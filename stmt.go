@@ -179,6 +179,17 @@ func (s *Stmt) Bind(args ...interface{}) error {
 			} else {
 				rc = C.sqlite3_bind_blob(stmt, bindIndex, cBytes(v), C.int(len(v)), C.SQLITE_TRANSIENT)
 			}
+		case *[]byte:
+			if v == nil {
+				C.sqlite3_bind_null(stmt, bindIndex)
+			} else {
+				vv := *v
+				if len(vv) == 0 {
+					rc = C.sqlite3_bind_zeroblob(stmt, bindIndex, 0)
+				} else {
+					rc = C.sqlite3_bind_blob(stmt, bindIndex, cBytes(vv), C.int(len(vv)), C.SQLITE_TRANSIENT)
+				}
+			}
 		case time.Time:
 			rc = C.sqlite3_bind_int64(stmt, bindIndex, C.sqlite3_int64(v.Unix()))
 		case *time.Time:
@@ -356,6 +367,18 @@ func (s *Stmt) scan(i int, v interface{}) error {
 		}
 	case *[]byte:
 		*v, err = s.ColumnBytes(i)
+	case **[]byte:
+		if s.columnTypes[i] != C.SQLITE_NULL {
+			n, e := s.ColumnBytes(i)
+			if e != nil {
+				err = e
+			} else {
+				*v = &n
+				if v == nil {
+					v = nil
+				}
+			}
+		}
 	case *RawBytes:
 		*v, err = s.ColumnRawBytes(i)
 	case *time.Time:
