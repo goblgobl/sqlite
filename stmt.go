@@ -388,6 +388,27 @@ func (s *Stmt) scan(i int, v interface{}) error {
 			n := time.Unix(s.ColumnInt64(i), 0)
 			*v = &n
 		}
+	case *uint16:
+		*v = uint16(s.ColumnInt64(i))
+	case **uint16:
+		if s.columnTypes[i] != C.SQLITE_NULL {
+			n := uint16(s.ColumnInt64(i))
+			*v = &n
+		}
+	case *uint32:
+		*v = uint32(s.ColumnInt64(i))
+	case **uint32:
+		if s.columnTypes[i] != C.SQLITE_NULL {
+			n := uint32(s.ColumnInt64(i))
+			*v = &n
+		}
+	case *uint64:
+		*v = uint64(s.ColumnInt64(i))
+	case **uint64:
+		if s.columnTypes[i] != C.SQLITE_NULL {
+			n := uint64(s.ColumnInt64(i))
+			*v = &n
+		}
 	default:
 		return Error{Code: C.SQLITE_MISUSE, Message: fmt.Sprintf("cannot scan into %T (index: %d)", v, i)}
 	}

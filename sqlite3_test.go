@@ -151,7 +151,7 @@ func Test_Bool_False(t *testing.T) {
 	assert.Equal(t, b2, false)
 }
 
-func Test_Bool_Int(t *testing.T) {
+func Test_Int(t *testing.T) {
 	db := testDB()
 	defer db.Close()
 	mustExec(db, `
@@ -166,7 +166,7 @@ func Test_Bool_Int(t *testing.T) {
 	assert.Equal(t, b2, 9223372036854775807)
 }
 
-func Test_Bool_Int64(t *testing.T) {
+func Test_Int64(t *testing.T) {
 	db := testDB()
 	defer db.Close()
 	mustExec(db, `
@@ -179,6 +179,33 @@ func Test_Bool_Int64(t *testing.T) {
 	row.Scan(&b1, &b2)
 	assert.Equal(t, b1, -9223372036854775808)
 	assert.Equal(t, b2, 9223372036854775807)
+}
+
+func Test_Uint(t *testing.T) {
+	db := testDB()
+	defer db.Close()
+	mustExec(db, `
+		insert into test (cint, cintn)
+		values (?, ?)
+	`, 9001, 9002)
+
+	var u16_1, u16_2 uint16
+	row := db.Row("select cint, cintn from test where id = ?", db.LastInsertRowID())
+	row.Scan(&u16_1, &u16_2)
+	assert.Equal(t, u16_1, 9001)
+	assert.Equal(t, u16_2, 9002)
+
+	var u32_1, u32_2 uint32
+	row = db.Row("select cint, cintn from test where id = ?", db.LastInsertRowID())
+	row.Scan(&u32_1, &u32_2)
+	assert.Equal(t, u32_1, 9001)
+	assert.Equal(t, u32_2, 9002)
+
+	var u64_1, u64_2 uint64
+	row = db.Row("select cint, cintn from test where id = ?", db.LastInsertRowID())
+	row.Scan(&u64_1, &u64_2)
+	assert.Equal(t, u64_1, 9001)
+	assert.Equal(t, u64_2, 9002)
 }
 
 func Test_String_Empty(t *testing.T) {
