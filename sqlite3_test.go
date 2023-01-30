@@ -376,6 +376,40 @@ func Test_Row_Map(t *testing.T) {
 	assert.Nil(t, m["ctimen"])
 }
 
+func Test_Escape(t *testing.T) {
+	assert.Equal(t, sqlite.EscapeLiteral(""), "''")
+	assert.Equal(t, sqlite.EscapeLiteral("over 9000"), "'over 9000'")
+	assert.Equal(t, sqlite.EscapeLiteral(`"over 9000"`), `'"over 9000"'`)
+	assert.Equal(t, sqlite.EscapeLiteral("it's over 9000"), "'it''s over 9000'")
+}
+
+func Test_Sqlkite_Functions(t *testing.T) {
+	db := testDB()
+	defer db.Close()
+
+	db.MustExec("create temp table sqlkite_user (id text not null, role text not null)")
+
+	var user string
+	err := db.Row("select sqlkite_user_id()").Scan(&user)
+	assert.Nil(t, err)
+	assert.Equal(t, user, "")
+
+	var role string
+	err = db.Row("select sqlkite_user_role()").Scan(&role)
+	assert.Nil(t, err)
+	assert.Equal(t, role, "")
+
+	db.MustExec("insert into sqlkite_user (id, role) values ('teg', 'special')")
+
+	err = db.Row("select sqlkite_user_id()").Scan(&user)
+	assert.Nil(t, err)
+	assert.Equal(t, user, "teg")
+
+	err = db.Row("select sqlkite_user_role()").Scan(&role)
+	assert.Nil(t, err)
+	assert.Equal(t, role, "special")
+}
+
 func testDB() sqlite.Conn {
 	db, err := sqlite.Open(":memory:", true)
 	if err != nil {

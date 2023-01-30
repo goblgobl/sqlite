@@ -78,6 +78,53 @@ package sqlite
 static int enable_defensive(sqlite3 *db) {
 	return sqlite3_db_config(db, SQLITE_DBCONFIG_DEFENSIVE, 1, (void*)0);
 }
+
+static void sqlkite_user_data(sqlite3_context *context, char *sql){
+	int rc;
+	sqlite3_stmt *stmt;
+	sqlite3 *db = sqlite3_context_db_handle(context);
+
+	rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+	if (rc != SQLITE_OK) {
+		return sqlite3_result_error(context, "prepare sqlkite_user", -1);
+	}
+
+	rc = sqlite3_step(stmt);
+	if (rc == SQLITE_ROW) {
+		sqlite3_result_value(context, sqlite3_column_value(stmt, 0));
+	} else if (rc == SQLITE_DONE) {
+		sqlite3_result_null(context);
+	} else {
+		sqlite3_result_error(context, "fetch sqlkite_user", -1);
+	}
+	sqlite3_finalize(stmt);
+}
+
+static void sqlkite_user_id(sqlite3_context *context, int argc, sqlite3_value **argv){
+	return sqlkite_user_data(context, "select id from sqlkite_user");
+}
+
+static void sqlkite_user_role(sqlite3_context *context, int argc, sqlite3_value **argv){
+	return sqlkite_user_data(context, "select role from sqlkite_user");
+}
+
+static char *sqlkite_escape_literal(char *value){
+	return sqlite3_mprintf("%Q", value);
+}
+
+static int registerFunctions(sqlite3 *db) {
+	int rc;
+	rc = sqlite3_create_function(db, "sqlkite_user_id", 0, SQLITE_UTF8, NULL, &sqlkite_user_id, NULL, NULL);
+	if (rc != SQLITE_OK) {
+		return rc;
+	}
+
+	rc = sqlite3_create_function(db, "sqlkite_user_role", 0, SQLITE_UTF8, NULL, &sqlkite_user_role, NULL, NULL);
+	if (rc != SQLITE_OK) {
+		return rc;
+	}
+	return SQLITE_OK;
+}
 */
 import "C"
 
@@ -120,6 +167,13 @@ func Memory() (Conn, error) {
 	return Open(":memory:", false)
 }
 
+func EscapeLiteral(value string) string {
+	str := C.sqlkite_escape_literal(C.CString(value))
+	escaped := C.GoString(str)
+	C.sqlite3_free(unsafe.Pointer(str))
+	return escaped
+}
+
 func Open(name string, create bool) (Conn, error) {
 	name = Terminate(name)
 
@@ -140,6 +194,12 @@ func Open(name string, create bool) (Conn, error) {
 	}
 
 	if rc = C.enable_defensive(db); rc != C.SQLITE_OK {
+		err := errorFromCode(db, rc)
+		C.sqlite3_close_v2(db)
+		return Conn{}, err
+	}
+
+	if rc := C.registerFunctions(db); rc != C.SQLITE_OK {
 		err := errorFromCode(db, rc)
 		C.sqlite3_close_v2(db)
 		return Conn{}, err
