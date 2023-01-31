@@ -1,3 +1,3 @@
 .PHONY: t
 t:
-	go test ./...
+	go test ./... -count=1 -race

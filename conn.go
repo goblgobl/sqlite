@@ -74,38 +74,112 @@ package sqlite
 #cgo windows,386 CFLAGS: -D_localtime32=localtime
 
 #include "sqlite3.h"
+#include <strings.h>
 
 static int enable_defensive(sqlite3 *db) {
 	return sqlite3_db_config(db, SQLITE_DBCONFIG_DEFENSIVE, 1, (void*)0);
 }
 
-static void sqlkite_user_data(sqlite3_context *context, char *sql){
+static int sqlkite_user_stmt(sqlite3_context *context, const char *sql, sqlite3_stmt **stmt) {
 	int rc;
-	sqlite3_stmt *stmt;
 	sqlite3 *db = sqlite3_context_db_handle(context);
 
-	rc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+	rc = sqlite3_prepare_v2(db, sql, -1, stmt, 0);
 	if (rc != SQLITE_OK) {
-		return sqlite3_result_error(context, "prepare sqlkite_user", -1);
+		const char* errMsg = sqlite3_mprintf("sqlkite_user.prepare - %s", sqlite3_errmsg(db));
+		sqlite3_result_error(context, errMsg, -1);
+		sqlite3_free((void *)errMsg);
+		return rc;
 	}
 
-	rc = sqlite3_step(stmt);
+	rc = sqlite3_step(*stmt);
 	if (rc == SQLITE_ROW) {
-		sqlite3_result_value(context, sqlite3_column_value(stmt, 0));
+		return rc;
+	}
+	if (rc == SQLITE_DONE) {
+		// this is fine, but we can close stmt for the caller
+		sqlite3_finalize(*stmt);
+		return rc;
+	}
+
+	// an error
+	sqlite3_finalize(*stmt);
+	const char* errMsg = sqlite3_mprintf("sqlkite_user.step - %s", sqlite3_errmsg(db));
+	sqlite3_result_error(context, errMsg, -1);
+	sqlite3_free((void *)errMsg);
+	return rc;
+}
+
+static void sqlkite_user_result(sqlite3_context *context, const char *sql){
+	sqlite3_stmt *stmt;
+
+	// Will sqlite3_result_error if needed, and finalize stmt unless there's a row
+	int rc = sqlkite_user_stmt(context, sql, &stmt);
+
+	if (rc == SQLITE_ROW) {
+		size_t len = sqlite3_column_bytes(stmt, 0);
+		const char *value = (const char*)sqlite3_column_text(stmt, 0);
+		sqlite3_result_text(context, value, len, SQLITE_TRANSIENT);
+		sqlite3_finalize(stmt);
 	} else if (rc == SQLITE_DONE) {
 		sqlite3_result_null(context);
-	} else {
-		sqlite3_result_error(context, "fetch sqlkite_user", -1);
 	}
-	sqlite3_finalize(stmt);
+}
+
+static char *sqlkite_user_value(sqlite3_context *context, const char *sql){
+	sqlite3_stmt *stmt;
+	char *value = NULL;
+
+	// Will sqlite3_result_error if needed, and finalize stmt unless there's a row
+	int rc = sqlkite_user_stmt(context, sql, &stmt);
+	if (rc == SQLITE_ROW) {
+		size_t len = sqlite3_column_bytes(stmt, 0);
+		if (len != 0) {
+			value = (char*)sqlite3_malloc64(len);
+			if (value) {
+				memcpy(value, sqlite3_column_text(stmt, 0), len);
+			} else {
+				sqlite3_result_error_nomem(context);
+			}
+		}
+		sqlite3_finalize(stmt);
+	}
+	return value;
+}
+
+static void sqlkite_assert_value(sqlite3_context *context, const char *sql, int argc, sqlite3_value **argv){
+	if (sqlite3_value_type(argv[0]) != SQLITE_TEXT) {
+		sqlite3_result_error(context, "sqlkite_assert requires a text argument", -1);
+		return;
+	}
+
+	int valid = -1;
+	const char *actual = sqlkite_user_value(context, sql);
+	if (actual) {
+		const char *target = (const char*)sqlite3_value_text(argv[0]);
+		valid = sqlite3_stricmp(actual, target);
+		sqlite3_free((void *)actual);
+	}
+
+	if (valid != 0) {
+		sqlite3_result_error(context, "sqlkite_row_access", -1);
+	}
 }
 
 static void sqlkite_user_id(sqlite3_context *context, int argc, sqlite3_value **argv){
-	return sqlkite_user_data(context, "select id from sqlkite_user");
+	return sqlkite_user_result(context, "select user_id from sqlkite_user");
 }
 
 static void sqlkite_user_role(sqlite3_context *context, int argc, sqlite3_value **argv){
-	return sqlkite_user_data(context, "select role from sqlkite_user");
+	return sqlkite_user_result(context, "select role from sqlkite_user");
+}
+
+static void sqlkite_assert_user_id(sqlite3_context *context, int argc, sqlite3_value **argv){
+	sqlkite_assert_value(context, "select user_id from sqlkite_user", argc, argv);
+}
+
+static void sqlkite_assert_user_role(sqlite3_context *context, int argc, sqlite3_value **argv){
+	sqlkite_assert_value(context, "select role from sqlkite_user", argc, argv);
 }
 
 static char *sqlkite_escape_literal(char *value){
@@ -120,6 +194,16 @@ static int registerFunctions(sqlite3 *db) {
 	}
 
 	rc = sqlite3_create_function(db, "sqlkite_user_role", 0, SQLITE_UTF8, NULL, &sqlkite_user_role, NULL, NULL);
+	if (rc != SQLITE_OK) {
+		return rc;
+	}
+
+	rc = sqlite3_create_function(db, "sqlkite_assert_user_id", 1, SQLITE_UTF8, NULL, &sqlkite_assert_user_id, NULL, NULL);
+	if (rc != SQLITE_OK) {
+		return rc;
+	}
+
+	rc = sqlite3_create_function(db, "sqlkite_assert_user_role", 1, SQLITE_UTF8, NULL, &sqlkite_assert_user_role, NULL, NULL);
 	if (rc != SQLITE_OK) {
 		return rc;
 	}

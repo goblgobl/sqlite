@@ -383,11 +383,10 @@ func Test_Escape(t *testing.T) {
 	assert.Equal(t, sqlite.EscapeLiteral("it's over 9000"), "'it''s over 9000'")
 }
 
-func Test_Sqlkite_Functions(t *testing.T) {
+func Test_Sqlkite_User(t *testing.T) {
 	db := testDB()
 	defer db.Close()
-
-	db.MustExec("create temp table sqlkite_user (id text not null, role text not null)")
+	createSqlkiteUser(db)
 
 	var user string
 	err := db.Row("select sqlkite_user_id()").Scan(&user)
@@ -399,7 +398,7 @@ func Test_Sqlkite_Functions(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, role, "")
 
-	db.MustExec("insert into sqlkite_user (id, role) values ('teg', 'special')")
+	db.MustExec("insert into sqlkite_user (user_id, role) values ('teg', 'special')")
 
 	err = db.Row("select sqlkite_user_id()").Scan(&user)
 	assert.Nil(t, err)
@@ -408,6 +407,136 @@ func Test_Sqlkite_Functions(t *testing.T) {
 	err = db.Row("select sqlkite_user_role()").Scan(&role)
 	assert.Nil(t, err)
 	assert.Equal(t, role, "special")
+}
+
+func Test_Sqlkite_Assert_User_Arguments(t *testing.T) {
+	db := testDB()
+	defer db.Close()
+	createSqlkiteUser(db)
+
+	err := db.Exec("select sqlkite_assert_user_id()")
+	assert.StringContains(t, err.Error(), "sqlite: wrong number of arguments to function sqlkite_assert_user_id()")
+
+	err = db.Exec("select sqlkite_assert_user_role()")
+	assert.StringContains(t, err.Error(), "sqlite: wrong number of arguments to function sqlkite_assert_user_role()")
+
+	err = db.Exec("select sqlkite_assert_user_id(32)")
+	assert.StringContains(t, err.Error(), "sqlkite_assert requires a text argument")
+
+	err = db.Exec("select sqlkite_assert_user_role(9000.1)")
+	assert.StringContains(t, err.Error(), "sqlkite_assert requires a text argument")
+}
+
+func Test_Sqlkite_Assert_User_Id(t *testing.T) {
+	db := testDB()
+	defer db.Close()
+	createSqlkiteUser(db)
+
+	db.MustExec("create table products (id integer not null, owner_id text not null)")
+	db.MustExec(`
+		create trigger sqlkite_row_control before insert on products for each row
+		begin
+			select sqlkite_assert_user_id(new.owner_id);
+		end
+	`)
+
+	assertIds := func(t *testing.T, expected ...int) {
+		t.Helper()
+		i := 0
+		rows := db.Rows("select id from products")
+		defer rows.Close()
+		for rows.Next() {
+			var id int
+			rows.Scan(&id)
+			assert.Equal(t, id, expected[i])
+			i += 1
+		}
+		if err := rows.Error(); err != nil {
+			panic(err)
+		}
+	}
+
+	err := db.Exec("insert into products (id, owner_id) values (1, 'teg')")
+	assert.StringContains(t, err.Error(), "sqlkite_row_access")
+	assertIds(t)
+
+	db.MustExec("insert into sqlkite_user (user_id) values ('teg')")
+	err = db.Exec("insert into products (id, owner_id) values (1, 'Teg')")
+	assert.Nil(t, err)
+	assertIds(t, 1)
+
+	db.MustExec("insert into sqlkite_user (user_id) values ('teg')")
+	err = db.Exec("insert into products (id, owner_id) values (1, 'other')")
+	assert.StringContains(t, err.Error(), "sqlkite_row_access")
+	assertIds(t, 1)
+
+	db.Transaction(func() error {
+		db.MustExec("update sqlkite_user set user_id = 'ghanima'")
+
+		err = db.Exec("insert into products (id, owner_id) values (2, 'ghanima')")
+		assert.Nil(t, err)
+
+		err = db.Exec("insert into products (id, owner_id) values (3, 'leto')")
+		assert.StringContains(t, err.Error(), "sqlkite_row_access")
+		return err
+	})
+	assertIds(t, 1)
+}
+
+func Test_Sqlkite_Assert_User_Role(t *testing.T) {
+	db := testDB()
+	defer db.Close()
+	createSqlkiteUser(db)
+
+	db.MustExec("create table products (id integer not null, role text not null)")
+	db.MustExec(`
+		create trigger sqlkite_row_control before insert on products for each row
+		begin
+			select sqlkite_assert_user_role(new.role);
+		end
+	`)
+
+	assertIds := func(t *testing.T, expected ...int) {
+		t.Helper()
+		i := 0
+		rows := db.Rows("select id from products")
+		defer rows.Close()
+		for rows.Next() {
+			var id int
+			rows.Scan(&id)
+			assert.Equal(t, id, expected[i])
+			i += 1
+		}
+		if err := rows.Error(); err != nil {
+			panic(err)
+		}
+	}
+
+	err := db.Exec("insert into products (id, role) values (1, 'public')")
+	assert.StringContains(t, err.Error(), "sqlkite_row_access")
+	assertIds(t)
+
+	db.MustExec("insert into sqlkite_user (role) values ('public')")
+	err = db.Exec("insert into products (id, role) values (1, 'Public')")
+	assert.Nil(t, err)
+	assertIds(t, 1)
+
+	db.MustExec("insert into sqlkite_user (role) values ('public')")
+	err = db.Exec("insert into products (id, role) values (1, 'other')")
+	assert.StringContains(t, err.Error(), "sqlkite_row_access")
+	assertIds(t, 1)
+
+	db.Transaction(func() error {
+		db.MustExec("update sqlkite_user set role = 'ADMIN'")
+
+		err = db.Exec("insert into products (id, role) values (2, 'ADmin')")
+		assert.Nil(t, err)
+
+		err = db.Exec("insert into products (id, role) values (3, 'guest')")
+		assert.StringContains(t, err.Error(), "sqlkite_row_access")
+		return err
+	})
+	assertIds(t, 1)
 }
 
 func testDB() sqlite.Conn {
@@ -464,4 +593,11 @@ func queryId(db sqlite.Conn, id int) *TestRow {
 	}
 
 	return &tr
+}
+
+func createSqlkiteUser(db sqlite.Conn) {
+	db.MustExec(`create temp table sqlkite_user(
+		user_id text default(''),
+		role text default('')
+	)`)
 }
