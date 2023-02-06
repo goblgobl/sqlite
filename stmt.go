@@ -65,8 +65,8 @@ func (s *Stmt) ColumnNames() []string {
 	return names
 }
 
-func (s *Stmt) Exec(args ...interface{}) error {
-	if err := s.Bind(args...); err != nil {
+func (s *Stmt) Exec(args ...any) error {
+	if err := s.Bind(args); err != nil {
 		s.Reset()
 		return err
 	}
@@ -83,7 +83,7 @@ func (s *Stmt) Exec(args ...interface{}) error {
 	return nil
 }
 
-func (s *Stmt) Bind(args ...interface{}) error {
+func (s *Stmt) Bind(args []any) error {
 	stmt := s.stmt
 	for i, v := range args {
 		var rc C.int
@@ -252,7 +252,7 @@ func (s *Stmt) MapInto(m map[string]any) error {
 	return nil
 }
 
-func (s *Stmt) Scan(dst ...interface{}) error {
+func (s *Stmt) Scan(dst ...any) error {
 	for i, v := range dst {
 		if err := s.scan(i, v); err != nil {
 			return err
@@ -261,7 +261,7 @@ func (s *Stmt) Scan(dst ...interface{}) error {
 	return nil
 }
 
-func (s *Stmt) Row(dst ...interface{}) (bool, error) {
+func (s *Stmt) Row(dst ...any) (bool, error) {
 	hasRow, err := s.Step()
 	if err != nil {
 		return false, err
@@ -326,7 +326,7 @@ func (s *Stmt) ColumnTypes() []byte {
 	return s.columnTypes
 }
 
-func (s *Stmt) scan(i int, v interface{}) error {
+func (s *Stmt) scan(i int, v any) error {
 	var err error
 	switch v := v.(type) {
 	case *string:

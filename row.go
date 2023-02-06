@@ -6,12 +6,19 @@ type Row struct {
 }
 
 func (r Row) Map() (map[string]any, error) {
+	if err := r.err; err != nil {
+		return nil, err
+	}
 	m := make(map[string]any, r.Stmt.columnCount)
 	err := r.MapInto(m)
 	return m, err
 }
 
 func (r Row) MapInto(m map[string]any) error {
+	if err := r.err; err != nil {
+		return err
+	}
+
 	stmt := r.Stmt
 	defer stmt.Close()
 

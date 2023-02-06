@@ -303,6 +303,10 @@ func (c *Conn) Close() error {
 }
 
 func (c Conn) Prepare(sql []byte, args ...any) (*Stmt, error) {
+	return c.PrepareArr(sql, args)
+}
+
+func (c Conn) PrepareArr(sql []byte, args []any) (*Stmt, error) {
 	db := c.db
 	var stmt *C.sqlite3_stmt
 	rc := C.sqlite3_prepare_v2(db, cStrFromBytes(sql), C.int(len(sql)), &stmt, nil)
@@ -327,7 +331,7 @@ func (c Conn) Prepare(sql []byte, args ...any) (*Stmt, error) {
 	}
 
 	if len(args) > 0 {
-		if err := s.Bind(args...); err != nil {
+		if err := s.Bind(args); err != nil {
 			s.Close()
 			return nil, err
 		}
@@ -337,43 +341,72 @@ func (c Conn) Prepare(sql []byte, args ...any) (*Stmt, error) {
 }
 
 func (c Conn) RowB(sql []byte, args ...any) Row {
-	stmt, err := c.Prepare(sql, args...)
-	return Row{Stmt: stmt, err: err}
+	return c.RowBArr(sql, args)
 }
 
 func (c Conn) Row(sql string, args ...any) Row {
-	return c.RowB(s2b(sql), args...)
+	return c.RowBArr(s2b(sql), args)
+}
+
+func (c Conn) RowBArr(sql []byte, args []any) Row {
+	stmt, err := c.PrepareArr(sql, args)
+	return Row{Stmt: stmt, err: err}
+}
+
+func (c Conn) RowArr(sql string, args []any) Row {
+	return c.RowBArr(s2b(sql), args)
 }
 
 func (c Conn) RowsB(sql []byte, args ...any) Rows {
-	stmt, err := c.Prepare(sql, args...)
+	stmt, err := c.PrepareArr(sql, args)
 	return Rows{Stmt: stmt, err: err}
 }
 
 func (c Conn) Rows(sql string, args ...any) Rows {
-	return c.RowsB(s2b(sql), args...)
+	return c.RowsBArr(s2b(sql), args)
+}
+
+func (c Conn) RowsBArr(sql []byte, args []any) Rows {
+	stmt, err := c.PrepareArr(sql, args)
+	return Rows{Stmt: stmt, err: err}
+}
+
+func (c Conn) RowsArr(sql string, args []any) Rows {
+	return c.RowsB(s2b(sql), args)
 }
 
 func (c Conn) ExecB(sql []byte, args ...any) error {
+	return c.ExecBArr(sql, args)
+}
+
+func (c Conn) Exec(sql string, args ...any) error {
+	return c.ExecArr(sql, args)
+}
+
+func (c Conn) ExecBArr(sql []byte, args []any) error {
 	if len(args) == 0 {
 		return c.ExecTerminated(append(sql, '\x00'))
 	}
-	return c.execArgs(sql, args...)
+	return c.execArgs(sql, args)
+}
+
+func (c Conn) ExecArr(sql string, args []any) error {
+	if len(args) == 0 {
+		return c.exec(cStr(Terminate(sql)))
+	}
+	return c.execArgs(s2b(sql), args)
 }
 
 func (c Conn) ExecTerminated(sql []byte) error {
 	return c.exec(cStrFromBytes(sql))
 }
 
-func (c Conn) Exec(sql string, args ...any) error {
-	if len(args) == 0 {
-		return c.exec(cStr(Terminate(sql)))
-	}
-	return c.execArgs(s2b(sql), args...)
+func (c Conn) MustExec(sql string, args ...any) {
+	c.MustExecArr(sql, args)
 }
 
-func (c Conn) MustExec(sql string, args ...any) {
-	if err := c.Exec(sql, args...); err != nil {
+func (c Conn) MustExecArr(sql string, args []any) {
+	if err := c.ExecArr(sql, args); err != nil {
 		panic(err)
 	}
 }
@@ -385,7 +418,7 @@ func (c Conn) exec(sql *C.char) error {
 	return nil
 }
 
-func (c Conn) execArgs(sql []byte, args ...any) error {
+func (c Conn) execArgs(sql []byte, args []any) error {
 	s, err := c.Prepare(sql)
 	if err != nil {
 		return err
@@ -395,7 +428,7 @@ func (c Conn) execArgs(sql []byte, args ...any) error {
 	}
 	defer s.Close()
 
-	if err = s.Bind(args...); err != nil {
+	if err = s.Bind(args); err != nil {
 		return err
 	}
 
