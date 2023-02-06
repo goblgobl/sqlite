@@ -372,7 +372,7 @@ func (c Conn) RowsBArr(sql []byte, args []any) Rows {
 }
 
 func (c Conn) RowsArr(sql string, args []any) Rows {
-	return c.RowsB(s2b(sql), args)
+	return c.RowsBArr(s2b(sql), args)
 }
 
 func (c Conn) ExecB(sql []byte, args ...any) error {
