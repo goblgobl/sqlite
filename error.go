@@ -6,12 +6,37 @@ package sqlite
 import "C"
 
 import (
+	"errors"
 	"fmt"
 )
 
 type Error struct {
 	Code    int
 	Message string
+}
+
+func IsUniqueErr(err error) bool {
+	var sqliteErr Error
+	if !errors.As(err, &sqliteErr) {
+		return false
+	}
+	return sqliteErr.Code == 2067
+}
+
+func UniqueConstraintName(err error) string {
+	var sqliteErr Error
+	if !errors.As(err, &sqliteErr) {
+		return ""
+	}
+	if sqliteErr.Code != 2067 {
+		return ""
+	}
+	message := sqliteErr.Message
+	if len(message) < 26 {
+		return ""
+	}
+
+	return message[26:]
 }
 
 func errorFromCode(db *C.sqlite3, rc C.int) error {

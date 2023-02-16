@@ -361,7 +361,7 @@ func Test_Row_Map(t *testing.T) {
 
 	m, err := db.Row("select * from test").Map()
 	assert.Nil(t, err)
-	assert.Equal(t, len(m), 11)
+	assert.Equal(t, len(m), 12)
 
 	assert.Equal(t, m["id"].(int), 99)
 	assert.Equal(t, m["cint"].(int), 2)
@@ -381,6 +381,28 @@ func Test_Escape(t *testing.T) {
 	assert.Equal(t, sqlite.EscapeLiteral("over 9000"), "'over 9000'")
 	assert.Equal(t, sqlite.EscapeLiteral(`"over 9000"`), `'"over 9000"'`)
 	assert.Equal(t, sqlite.EscapeLiteral("it's over 9000"), "'it''s over 9000'")
+}
+
+func Test_IsUniqueErr(t *testing.T) {
+	db := testDB()
+	defer db.Close()
+
+	assert.False(t, sqlite.IsUniqueErr(nil))
+	assert.False(t, sqlite.IsUniqueErr(sqlite.ErrNoRows))
+
+	assert.Nil(t, db.Exec("insert into test (uniq) values (1)"))
+	assert.True(t, sqlite.IsUniqueErr(db.Exec("insert into test (uniq) values (1)")))
+}
+
+func Test_UniqueConstraintName(t *testing.T) {
+	db := testDB()
+	defer db.Close()
+
+	assert.Equal(t, sqlite.UniqueConstraintName(nil), "")
+	assert.Equal(t, sqlite.UniqueConstraintName(sqlite.ErrNoRows), "")
+
+	assert.Nil(t, db.Exec("insert into test (uniq) values (1)"))
+	assert.Equal(t, sqlite.UniqueConstraintName(db.Exec("insert into test (uniq) values (1)")), "test.uniq")
 }
 
 func Test_Sqlkite_User(t *testing.T) {
@@ -556,7 +578,8 @@ func testDB() sqlite.Conn {
 			cblob blob not null default(''),
 			cblobn blob null,
 			ctime int not null default(0),
-			ctimen int null
+			ctimen int null,
+			uniq int unique null
 		)
 	`)
 	return db
